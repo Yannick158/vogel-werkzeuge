@@ -1,0 +1,43 @@
+[Unit]
+# Haelt eine Verbindung vom Pi zum Server offen, durch die man vom Server aus
+# zurueck auf den Pi kommt - fuer Wartung, ohne im Heimnetz zu sein.
+#
+# WARUM DER PI DIE VERBINDUNG AUFBAUT und nicht der Server:
+# Der Pi steht hinter einem gewoehnlichen Router. Damit der Server ihn
+# erreichen koennte, muesste im Router eine Portfreigabe eingerichtet werden -
+# und die stuende dann jedem im Internet offen. So herum baut der Pi die
+# Verbindung auf, der Router bleibt dicht.
+#
+# WER DURCH DEN TUNNEL KOMMT: nur wer bereits auf dem Server ist. Der Zugang
+# haengt an 127.0.0.1 des Servers, nicht an dessen oeffentlicher Adresse.
+Description=Rueckweg zum Pi ueber den Server offen halten
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=vogel
+# -N: keine Befehle ausfuehren, nur den Weg offen halten
+# -T: kein Terminal
+# -R: Wer sich auf dem Server mit Port 2222 verbindet, landet auf Port 22 hier.
+#     Fuer den Live-Modus gab es hier bis zum 11.09.2026 einen zweiten Weg
+#     (8091), durch den sich der SERVER die Daten aus dem Pi holte. Genau das
+#     soll nicht sein - der Pi nimmt nichts entgegen. Ersetzt durch das -L
+#     unten: der Pi fragt selbst nach und liefert.
+# -L: die GEGENRICHTUNG - der Pi erreicht damit den Briefkasten auf dem
+#     Server (8092) und fragt dort nach, ob jemand zuschauen will. Das ist
+#     KEINE Oeffnung zum Pi hin: er baut die Verbindung auf und benutzt
+#     sie. Der Schluessel erlaubt per permitopen genau diese eine Adresse.
+# ExitOnForwardFailure: lieber abbrechen und neu versuchen als still nutzlos laufen
+ExecStart=/usr/bin/ssh -NT \
+    -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+    -o ExitOnForwardFailure=yes -o StrictHostKeyChecking=accept-new \
+    -o UserKnownHostsFile=/home/vogel/.ssh/known_hosts \
+    -i /home/vogel/.ssh/id_rueckweg \
+    -R 127.0.0.1:2222:127.0.0.1:22 \
+    -L 127.0.0.1:8092:127.0.0.1:8092 \
+    rueckweg@203.0.113.10
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

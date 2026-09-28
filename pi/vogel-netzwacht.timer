@@ -1,0 +1,12 @@
+[Unit]
+Description=Netzwacht regelmaessig pruefen lassen
+
+[Timer]
+# Erst fuenf Minuten nach dem Start - vorher ist das Netz ohnehin noch am
+# Kommen, und ein Wachhund, der beim Hochfahren anschlaegt, richtet Unfug an.
+OnBootSec=5min
+OnUnitActiveSec=3min
+RandomizedDelaySec=20
+
+[Install]
+WantedBy=timers.target

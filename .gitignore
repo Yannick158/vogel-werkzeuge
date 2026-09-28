@@ -1,0 +1,39 @@
+# Zugangsdaten - nichts davon gehoert je in ein Repository
+*-key
+.*-key
+*.key
+*.pem
+secrets.env
+.env
+.env.*
+!.env.example
+config.toml
+known_hosts*
+id_*
+!id_*.md
+*.keystore
+*.jks
+keystore.properties
+local.properties
+
+# Laufzeit- und Arbeitsdaten
+arbeit/
+arbeit-*/
+ton/
+ton-art/
+stimme/
+venv/
+__pycache__/
+*.py[cod]
+*.log
+*.db
+*.sqlite3
+*.mp4
+*.wav
+*.mp3
+
+# Sicherungskopien
+*.bak
+*.bak.*
+*.vor-*
+.DS_Store

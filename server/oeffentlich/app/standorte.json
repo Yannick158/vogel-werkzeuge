@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "standorte": [
+    {"id": "garten",        "name": "Garten",        "untertitel": "Hauptstandort", "host": "garten.example.org", "sprache": "de", "live": true},
+    {"id": "zweitstandort", "name": "Zweitstandort", "untertitel": "Beispiel",      "host": "zweitstandort.example.org",        "sprache": "en", "live": false}
+  ]
+}

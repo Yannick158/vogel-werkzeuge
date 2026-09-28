@@ -1,0 +1,107 @@
+# Caddy fuer die Vogelanzeige - mit Zugangsschutz.
+#
+# Die Daten kommen vom Pi: birds.db und die Aufnahmen werden alle zehn Minuten
+# hochgeladen. Die Oberflaeche ist unveraendert die des Originalprojekts.
+#
+# ZUGANG: Die ganze Seite liegt hinter einem Passwort. Wer die Adresse kennt,
+# sieht ohne Anmeldung nichts - auch keine Vogelnamen, keine Zeiten, nichts
+# ueber die Gewohnheiten im Haus.
+#
+# GESPERRT bleiben zusaetzlich alle Endpunkte, die den Rechner steuern wuerden:
+# Wartung, Archivierung und Bilderzeugung rufen Helfer mit Systemrechten auf -
+# auf einem Server im Internet haben die nichts verloren.
+
+{
+	# Serverkennung nicht verraten
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+(schutz) {
+	log {
+		output file /var/log/caddy/zugriff.log {
+			mode 0640
+			roll_size 20mb
+			roll_keep 5
+		}
+		format json
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:; media-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		-Server
+	}
+
+	encode gzip zstd
+
+	# --- Die Anmeldeseite ist immer erreichbar, auch ohne Sitzung ---
+	# rewrite noetig, damit /login (ohne .php) die Seite login.php ausfuehrt und
+	# das Sitzungs-Cookie setzt.
+	@login path /login /login.php
+	handle @login {
+		rewrite * /login.php
+		root * /srv/login
+		php_fastcgi unix//run/php/php-fpm.sock
+	}
+
+	# --- Alles andere verlangt eine gueltige Sitzung ---
+	# WICHTIG: forward_auth steht DIREKT im handle, NICHT in einer route.
+	# In einer route laeuft es nicht blockierend - der Inhalt kaeme trotz
+	# fehlender Sitzung durch (teuer erkauft am 27.08.). copy_headers Cookie
+	# reicht das Sitzungs-Cookie an den Pruefdienst weiter.
+	handle {
+		forward_auth 127.0.0.1:9101 {
+			uri /pruef.php
+			copy_headers Cookie
+		}
+
+		root * /srv/avian/webroot
+
+		@gesperrt path /avian/api/maintenance.php /avian/api/archive.php /avian/api/generate.php /avian/api/admin-auth.php
+		handle @gesperrt {
+			respond 404
+		}
+
+		@pi_seiten path /scripts/* /stats.php /overview.php /history.php /todays_detections.php /weekly_report.php /play.php /views.php /index.php /phpsysinfo/*
+		handle @pi_seiten {
+			respond 404
+		}
+
+		@php path /avian/api/birdnet-api.php /avian/api/cutout.php /avian/api/wiki.php /avian/api/recording.php /avian/api/spectrogram.php /avian/api/menu.php /avian/api/config.php /avian/api/birdnet-status.php /avian/api/export.php /eigenes/zustand.php /eigenes/export.php /eigenes/verlauf.php
+		handle @php {
+			php_fastcgi unix//run/php/php-fpm.sock
+		}
+
+		# Uebrige PHP-Dateien nie ausliefern - sonst Quellcode-Leck, falls PHP-FPM ausfaellt.
+		@restliches_php path *.php
+		handle @restliches_php {
+			respond 404
+		}
+
+		handle {
+			file_server
+		}
+	}
+}
+
+example.org, example.org, example.org {
+	import schutz
+}
+
+# Wer noch die nackte Adresse kennt, wird auf den Namen geleitet.
+http://203.0.113.10 {
+	redir https://example.org{uri} permanent
+}
+
+# Interner Anmeldedienst - nur lokal erreichbar. Bedient login.php und die
+# Sitzungsprüfung pruef.php über php-fpm; Caddys forward_auth fragt hier an.
+http://127.0.0.1:9101 {
+	root * /srv/login
+	php_fastcgi unix//run/php/php-fpm.sock
+}

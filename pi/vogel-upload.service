@@ -1,0 +1,12 @@
+[Unit]
+Description=BirdNET-Daten zum Server hochladen
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/__USER__/daten_hochladen.sh
+User=__USER__
+# Letzte Sicherung: Haengt der Abgleich trotz allem, bricht systemd ihn nach
+# zehn Minuten ab. Sonst blockiert ein toter Prozess alle weiteren Laeufe -
+# der Zeitgeber startet keinen zweiten, solange der erste noch laeuft.
+TimeoutStartSec=600

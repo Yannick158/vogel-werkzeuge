@@ -1,0 +1,10 @@
+[Unit]
+Description=Netzwacht: holt den Pi zurueck ins Netz
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/vogel/netzwacht.sh
+# Braucht root fuer nmcli/systemctl/reboot.
+User=root
+TimeoutStartSec=120

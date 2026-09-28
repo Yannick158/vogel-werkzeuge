@@ -1,0 +1,11 @@
+[Unit]
+Description=Horcht auf neue Erkennungen vom Pi und zieht fehlende Bilder nach
+
+[Path]
+# Der Pi legt birds.db per rsync ab (Zwischendatei, dann Umbenennen) -
+# PathChanged fasst genau dieses Fertigstellen.
+PathChanged=/srv/pi-daten/birds.db
+Unit=vogel-vogelbild.service
+
+[Install]
+WantedBy=paths.target

@@ -1,0 +1,61 @@
+[Unit]
+# Die Ablage zwischen Pi und Webseite.
+#
+# WARUM ES SIE GIBT: Vorher griff die Webseite durch den Rueckwaerts-Tunnel in
+# den Pi hinein - ein Aufruf im Browser konnte damit etwas auf einem Geraet im
+# fremden Wohnzimmer ausloesen. Jetzt legt die Webseite hier nur einen Wunsch
+# ab, der Pi sieht von sich aus nach und liefert. Beide reden mit dieser
+# Ablage, nie miteinander. Der Pi nimmt nichts mehr entgegen.
+Description=Vogel-Briefkasten: Ablage zwischen Pi und Webseite
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+# Die Ablage liegt im Arbeitsspeicher: Streifen und Tonausschnitte sollen
+# nicht auf der Platte liegen bleiben, und sie sind ohnehin nach Minuten alt.
+RuntimeDirectory=vogel-briefkasten
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/python3 /srv/avian/briefkasten/briefkasten.py \
+    --ordner /run/vogel-briefkasten --port 8092
+Restart=always
+RestartSec=5
+Nice=5
+
+# --- Abschottung ----------------------------------------------------------
+# Wie bei den Pi-Diensten: ein Dienst, der Anfragen entgegennimmt und Dateien
+# ausliefert, soll so wenig duerfen wie moeglich.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/vogel-briefkasten
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectProc=invisible
+ProcSubset=pid
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @obsolete
+RemoveIPC=yes
+UMask=0077
+# Nur die Rueckschleife - nach aussen fuehrt von hier nichts.
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressAllow=localhost
+IPAddressDeny=any
+MemoryMax=192M
+
+[Install]
+WantedBy=multi-user.target

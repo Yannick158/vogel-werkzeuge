@@ -1,0 +1,25 @@
+[Unit]
+# Der schnelle Weg: nur Zustand und Datenbank, alle zwei Minuten.
+#
+# Warum es diesen Dienst gibt: Bis zum 10.09.2026 lief alles im
+# Zehn-Minuten-Takt. Ein Vogel stand damit erst nach durchschnittlich
+# fuenfeinhalb Minuten auf der Webseite - obwohl BirdNET ihn nach 6 bis 21
+# Sekunden kannte und die Seite alle 30 Sekunden nachfragt. Die Bremse war
+# allein der Abgleich.
+#
+# Die Aufnahmen bleiben bewusst im langsamen Takt (vogel-upload.timer): fuer
+# sie muss rsync jedes Mal den ganzen Aufnahmeordner durchgehen, und
+# haeufigeres Lesen der SD-Karte ist die haeufigste Ausfallursache an diesen
+# Geraeten. Gebraucht werden sie erst, wenn jemand auf Abspielen tippt.
+Description=Nur Datenbank und Zustand zum Server hochladen (schnell)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/vogel/daten_hochladen.sh db
+User=vogel
+# Kurz gehalten: haengt der Lauf, soll er weg sein, bevor der naechste faellig
+# ist. Das Schloss im Skript verhindert ohnehin, dass sich zwei ueberholen.
+TimeoutStartSec=100
+Nice=5
+IOSchedulingClass=idle

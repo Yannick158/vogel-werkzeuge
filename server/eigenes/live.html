@@ -1,0 +1,845 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live im Garten</title>
+<style>
+  /* Farben als Variablen, damit sich die Seite mit einer Zeile an das
+     Aussehen der Hauptseite angleichen laesst. Das Band selbst bleibt dunkel:
+     ein Spektrogramm braucht einen dunklen Grund, sonst verschwinden die
+     leisen Gesaenge im Papier. */
+  :root {
+    --papier: #f3efe7;
+    --tinte: #2c2924;
+    --leise: #7d7568;
+    --linie: #ddd5c8;
+    --band: #0b0a14;
+    --marke: #e8b64c;
+    --marke-satt: #c8892a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--papier); color: var(--tinte);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-text-size-adjust: 100%;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px calc(14px + env(safe-area-inset-top)) 16px;
+    padding-top: calc(14px + env(safe-area-inset-top));
+  }
+  #zurueck {
+    appearance: none; border: 0; background: none; color: var(--tinte);
+    font-size: 26px; line-height: 1; padding: 4px 8px; cursor: pointer;
+    border-radius: 8px;
+  }
+  #zurueck:active { background: var(--linie); }
+  h1 { font-size: 19px; margin: 0; font-weight: 600; }
+
+  #huelle { padding: 0 16px; }
+
+  /* Das Band. Die Hoehe steht in CSS, die Zeichenflaeche wird im Skript auf
+     die Punktdichte des Geraets gesetzt - sonst ist ein 1200 Punkte breiter
+     Streifen auf einem scharfen Bildschirm hochskaliert und matschig. */
+  #rahmen {
+    position: relative; border-radius: 14px; overflow: hidden;
+    background: var(--band); box-shadow: 0 1px 3px rgba(0,0,0,.18);
+  }
+  /* touch-action: none, sonst scrollt beim Ziehen die Seite statt des Bandes. */
+  #band { display: block; width: 100%; height: 150px; touch-action: none;
+          cursor: grab; user-select: none; -webkit-user-select: none; }
+  #band.zieht { cursor: grabbing; }
+
+  /* Die Gegenwartskante. Rechts laeuft das Neue herein. */
+  #kante {
+    position: absolute; top: 0; right: 0; width: 2px; height: 100%;
+    background: linear-gradient(to bottom, transparent, rgba(255,255,255,.55), transparent);
+    pointer-events: none;
+  }
+  #hinweis {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; color: #cfc7bb; font-size: 15px;
+    text-align: center; padding: 0 24px; pointer-events: none;
+  }
+  #hinweis.weg { display: none; }
+
+  #fuss {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin: 10px 2px 0; font-size: 13px; color: var(--leise);
+  }
+  #puls { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+  #lage { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #punkt {
+    width: 8px; height: 8px; border-radius: 50%; background: #57a05a;
+    animation: pochen 2.4s ease-in-out infinite;
+  }
+  #punkt.still { background: var(--leise); animation: none; }
+  @keyframes pochen { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+  #halt {
+    appearance: none; border: 1px solid var(--linie); background: transparent;
+    color: var(--leise); border-radius: 999px; padding: 5px 13px;
+    font-size: 13px; cursor: pointer; font-family: inherit;
+    white-space: nowrap; flex: none;
+  }
+  #halt.an { border-color: var(--marke-satt); color: var(--marke-satt); font-weight: 600; }
+
+  /* --- Vogelreihe ------------------------------------------------------
+     Dieselben freigestellten Bilder wie in der Collage (cutout.php). Sie
+     stehen zwischen Band und Liste, damit man sofort sieht, wie der Vogel
+     aussieht - der Name allein sagt einem das ja nur, wenn man ihn kennt. */
+  #galerie {
+    display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden;
+    margin: 18px -16px 0; padding: 0 16px 4px;
+    scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+  }
+  #galerie[hidden] { display: none; }
+  #galerie::-webkit-scrollbar { height: 0; }
+  .vogel {
+    flex: none; width: 116px; scroll-snap-align: start;
+    background: none; border: 0; padding: 4px 2px 6px; cursor: pointer;
+    font: inherit; color: var(--tinte); text-align: center;
+    border-radius: 12px;
+  }
+  .vogel:active { background: rgba(0,0,0,.05); }
+  .vogel img {
+    width: 100%; height: 82px; object-fit: contain; display: block;
+    /* Ein weicher Schatten laesst den freigestellten Vogel auf dem Papier
+       stehen, statt zu schweben. */
+    filter: drop-shadow(0 3px 5px rgba(60,50,35,.22));
+  }
+  .vogel img.leer { visibility: hidden; }
+  .vogel b { display: block; margin-top: 7px; font-size: 12.5px; font-weight: 600;
+             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vogel span { display: block; font-size: 11px; color: var(--leise);
+                font-variant-numeric: tabular-nums; }
+
+  h2 { font-size: 14px; letter-spacing: .04em; text-transform: uppercase;
+       color: var(--leise); font-weight: 600; margin: 26px 2px 8px; }
+  #liste { list-style: none; margin: 0 0 40px; padding: 0; }
+  #liste li {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 2px; border-top: 1px solid var(--linie);
+  }
+  #liste li:last-child { border-bottom: 1px solid var(--linie); }
+  .uhr { font-variant-numeric: tabular-nums; color: var(--leise); font-size: 13px; min-width: 62px; }
+  .wer { flex: 1; min-width: 0; }
+  .wer b { font-weight: 600; display: block; overflow: hidden;
+           text-overflow: ellipsis; white-space: nowrap; }
+  .wer span { font-size: 12px; color: var(--leise); }
+  .hoeren {
+    appearance: none; border: 1px solid var(--linie); background: transparent;
+    color: var(--tinte); border-radius: 999px; width: 38px; height: 38px;
+    font-size: 14px; cursor: pointer; flex: none;
+  }
+  .hoeren:active, .hoeren.laeuft { background: var(--marke); border-color: var(--marke); }
+  #leer { color: var(--leise); font-size: 14px; padding: 12px 2px 0; }
+  .wer { cursor: pointer; }
+
+  /* --- Infokarte -------------------------------------------------------
+     Liegt UEBER der Live-Ansicht, ersetzt sie nicht. Das Band laeuft
+     darunter weiter, und das x bringt einen genau dorthin zurueck. */
+  #karte { position: fixed; inset: 0; z-index: 60; display: flex;
+           align-items: flex-end; justify-content: center; }
+  #karte[hidden] { display: none; }
+  #karte-hg { position: absolute; inset: 0; background: rgba(24,21,17,.5);
+              animation: karte-auf .18s ease both; }
+  @keyframes karte-auf { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes blatt-hoch { from { transform: translateY(14px); opacity: .4 }
+                          to { transform: none; opacity: 1 } }
+  #karte-blatt {
+    position: relative; width: 100%; max-width: 560px; max-height: 86vh;
+    overflow-y: auto; background: var(--papier); color: var(--tinte);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -6px 30px rgba(0,0,0,.22);
+    animation: blatt-hoch .22s ease both;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 640px) {
+    #karte { align-items: center; }
+    #karte-blatt { border-radius: 18px; }
+  }
+  #karte-zu {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    width: 40px; height: 40px; border-radius: 999px; border: 0;
+    background: rgba(255,255,255,.86); color: #2c2924;
+    font: 22px/1 -apple-system, sans-serif; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,.2);
+  }
+  #karte-zu:active { background: #fff; }
+  #karte-foto { width: 100%; aspect-ratio: 16/10; object-fit: cover;
+                display: block; background: var(--linie); }
+  #karte-foto[hidden] { display: none; }
+  #karte-kopf { padding: 16px 20px 0; }
+  /* Der allgemeine h2-Stil weiter oben ist fuer die Abschnittsueberschrift
+     "GERADE GEHÖRT" gedacht - Versalien, gesperrt, blass. Fuer einen Artnamen
+     waere das falsch, also hier ausdruecklich zuruecknehmen. */
+  #karte-kopf h2 { margin: 0; font-size: 23px; font-weight: 600;
+                   text-transform: none; letter-spacing: 0; color: var(--tinte); }
+  #karte-kopf p { margin: 3px 0 0; font-size: 13px; color: var(--leise); }
+  #karte-ton {
+    display: flex; align-items: center; gap: 10px; margin: 16px 20px 0;
+    padding: 12px 16px; border: 1px solid var(--linie); border-radius: 12px;
+    background: transparent; color: var(--tinte); font: inherit; font-size: 15px;
+    cursor: pointer; width: calc(100% - 40px);
+  }
+  #karte-ton:disabled { opacity: .55; cursor: default; }
+  #karte-ton.laeuft { background: var(--marke); border-color: var(--marke); }
+  #karte-text { padding: 4px 20px 0; font-size: 15px; line-height: 1.62; }
+  #karte-text p { margin: 14px 0 0; }
+  #karte-quelle { padding: 10px 20px 0; font-size: 12px; color: var(--leise); }
+  #karte-quelle a { color: inherit; }
+</style>
+
+<header>
+  <button id="zurueck" aria-label="Zurück">‹</button>
+  <h1>Live im Garten</h1>
+</header>
+
+<div id="huelle">
+  <div id="rahmen">
+    <canvas id="band"></canvas>
+    <div id="kante"></div>
+    <div id="hinweis">Ich höre zu …</div>
+  </div>
+  <div id="fuss">
+    <span id="puls"><i id="punkt"></i><span id="lage">verbinde …</span></span>
+    <button id="halt" type="button">anhalten</button>
+  </div>
+
+  <div id="galerie" hidden aria-label="Zuletzt gehörte Vögel"></div>
+
+  <h2>Gerade gehört</h2>
+  <ul id="liste"></ul>
+  <p id="leer">Noch nichts erkannt. Das kann dauern – die meisten Minuten im Garten sind still.</p>
+</div>
+
+<div id="karte" hidden role="dialog" aria-modal="true" aria-labelledby="karte-name">
+  <div id="karte-hg"></div>
+  <div id="karte-blatt">
+    <button id="karte-zu" type="button" aria-label="Schließen">×</button>
+    <img id="karte-foto" alt="" hidden>
+    <div id="karte-kopf">
+      <h2 id="karte-name"></h2>
+      <p id="karte-wann"></p>
+    </div>
+    <button id="karte-ton" type="button"><span id="karte-ton-zeichen">▶</span><span id="karte-ton-text">Aufnahme anhören</span></button>
+    <div id="karte-text"></div>
+    <p id="karte-quelle"></p>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // Warum die Anzeige absichtlich nachlaeuft:
+  // BirdNET arbeitet in 15-Sekunden-Bloecken und rechnet danach rund sechs
+  // Sekunden. Ein Fund steht also erst 6 bis 21 Sekunden nach dem Gesang
+  // fest. Liefe das Band echt live, traefe die Markierung nie die Welle, die
+  // sie ausgeloest hat - der Name erschiene, wenn die Stelle laengst
+  // vorbeigescrollt ist. Mit diesem Nachlauf sitzt jede Markierung genau
+  // richtig. Und weil niemand einen Vergleich zu "jetzt" hat, wirkt es live.
+  var NACHLAUF = 22;
+
+  var band = document.getElementById('band');
+  var ctx = band.getContext('2d');
+  var hinweis = document.getElementById('hinweis');
+  var lage = document.getElementById('lage');
+  var punkt = document.getElementById('punkt');
+  var halt = document.getElementById('halt');
+  var liste = document.getElementById('liste');
+  var leer = document.getElementById('leer');
+  var galerie = document.getElementById('galerie');
+
+  var bloecke = new Map();   // name -> {beginn, bild}
+  var funde = [];
+  var pps = 40;              // Bildpunkte je Sekunde in der Anzeige
+  var uhrVersatz = null;     // Serverzeit minus performance.now()
+  var angehalten = false;
+  var haltZeit = 0;
+  var zieht = false, ziehX = 0, ziehZeit = 0, gezogen = 0, warAngehalten = false;
+  var wissen = new Map();   // Artname -> abgerufene Infos, einmal je Sitzung
+  var offenerFund = null;
+  var hoertZu = false;
+  var leerSeit = 0;   // wie viele Abrufe hintereinander nichts brachten
+  var breite = 0, hoehe = 150;
+  var ton = null, tonDatei = null;
+
+  // --- Uhr ----------------------------------------------------------------
+  // Der Server sagt, wie spaet es ist; dazwischen laeuft die Uhr des Browsers
+  // weiter. Der Versatz wird sanft nachgezogen statt bei jedem Abruf gesetzt,
+  // sonst ruckelt das Band im Takt der Abfrage.
+  function uhrStellen(serverJetzt) {
+    var roh = serverJetzt * 1000 - performance.now();
+    if (uhrVersatz === null || Math.abs(roh - uhrVersatz) > 3000) uhrVersatz = roh;
+    else uhrVersatz += (roh - uhrVersatz) * 0.15;
+  }
+  function jetzt() {
+    return uhrVersatz === null ? 0 : (performance.now() + uhrVersatz) / 1000;
+  }
+  function zeigezeit() {
+    return angehalten ? haltZeit : jetzt() - NACHLAUF;
+  }
+
+  // --- Zeichenflaeche -----------------------------------------------------
+  function messen() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    breite = band.clientWidth;
+    band.width = Math.round(breite * dpr);
+    band.height = Math.round(hoehe * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', messen);
+
+  // --- Abruf --------------------------------------------------------------
+  var laeuftAbruf = false;
+  function abrufen() {
+    if (laeuftAbruf || document.hidden) return;
+    laeuftAbruf = true;
+    fetch('/eigenes/live.php?was=stand', { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) {
+        if (r.status === 503) throw new Error('pi');
+        if (!r.ok) throw new Error('http ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        uhrStellen(d.jetzt);
+        if (d.punkte_je_sekunde) pps = d.punkte_je_sekunde;
+        if (d.hoehe) { hoehe = d.hoehe; band.style.height = hoehe + 'px'; messen(); }
+
+        var da = new Set();
+        (d.bloecke || []).forEach(function (b) {
+          da.add(b.name);
+          if (bloecke.has(b.name)) return;
+          var bild = new Image();
+          bild.decoding = 'async';
+          bild.src = '/eigenes/live.php?was=streifen&block=' + encodeURIComponent(b.name);
+          bloecke.set(b.name, { beginn: b.beginn, bild: bild });
+        });
+        // Was der Pi nicht mehr fuehrt, ist aus seinem Ring gelaufen.
+        bloecke.forEach(function (_v, k) { if (!da.has(k)) bloecke.delete(k); });
+
+        funde = d.funde || [];
+        listeBauen();
+        galerieBauen();
+        hoertZu = d.hoert_zu !== false;
+        leerSeit = bloecke.size ? 0 : leerSeit + 1;
+        melden(bloecke.size ? 'live' : 'warte');
+      })
+      .catch(function (f) {
+        melden(f && f.message === 'pi' ? 'pi' : 'fehler');
+      })
+      .then(function () { laeuftAbruf = false; });
+  }
+
+  var letzteLage = 'warte';
+
+  // Zeigt, wo man gerade steht: live, oder wie weit zurueckgerollt. Der
+  // Halteknopf wechselt mit - stehengeblieben heisst, man will zurueck.
+  function lageZeigen() {
+    halt.textContent = angehalten ? 'zurück zu jetzt' : 'anhalten';
+    halt.classList.toggle('an', angehalten);
+    if (letzteLage !== 'live') return;
+    // Der Punkt pocht nur, solange es wirklich live ist - sonst behauptet er
+    // etwas, das gerade nicht stimmt.
+    punkt.classList.toggle('still', angehalten);
+    if (!angehalten) {
+      lage.textContent = 'live, ' + NACHLAUF + ' Sekunden versetzt';
+      return;
+    }
+    var zurueck = Math.max(0, Math.round(jetzt() - NACHLAUF - haltZeit));
+    lage.textContent = zurueck < 3
+      ? 'angehalten'
+      : uhrzeit(haltZeit) + ' · ' + zurueck + ' s zurück';
+  }
+
+  function melden(art) {
+    letzteLage = art;
+    punkt.classList.toggle('still', art !== 'live');
+    if (art === 'live') {
+      lageZeigen();
+      hinweis.classList.add('weg');
+    } else if (art === 'warte') {
+      // Der Pi sieht alle drei Sekunden nach, ob jemand zuschauen will, und
+      // liefert dann. Beim Oeffnen dauert es also ein paar Sekunden, bis das
+      // Erste da ist. Bleibt es lange leer, meldet er sich nicht - das soll
+      // dann auch dastehen, statt ewig "gleich" zu versprechen.
+      var lange = leerSeit > 6;   // rund eine halbe Minute
+      lage.textContent = lange ? 'der Pi meldet sich nicht' : 'gleich geht es los';
+      hinweis.textContent = lange
+        ? 'Der Pi im Garten liefert gerade nichts. Sobald er sich wieder meldet, läuft das Band von selbst weiter.'
+        : 'Ich horche in den Garten – einen Moment, der erste Abschnitt wird noch aufgenommen.';
+      hinweis.classList.remove('weg');
+    } else if (art === 'pi') {
+      lage.textContent = 'der Pi ist gerade nicht erreichbar';
+      hinweis.textContent = 'Der Pi im Garten antwortet nicht. Sobald er wieder da ist, läuft das Band weiter.';
+      hinweis.classList.remove('weg');
+    } else {
+      lage.textContent = 'keine Verbindung';
+      hinweis.textContent = 'Keine Verbindung.';
+      hinweis.classList.remove('weg');
+    }
+  }
+
+  // --- Zeichnen -----------------------------------------------------------
+  function zeichnen() {
+    var t = zeigezeit();
+    ctx.fillStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue('--band').trim() || '#0b0a14';
+    ctx.fillRect(0, 0, breite, hoehe);
+
+    if (uhrVersatz !== null) {
+      bloecke.forEach(function (b) {
+        if (!b.bild.complete || !b.bild.naturalWidth) return;
+        var w = 15 * pps;
+        var x = breite - (t - b.beginn) * pps;
+        if (x > breite || x + w < 0) return;
+        ctx.drawImage(b.bild, x, 0, w, hoehe);
+      });
+      markenZeichnen(t);
+    }
+    if (angehalten && performance.now() - letzteLageZeit > 500) {
+      letzteLageZeit = performance.now();
+      lageZeigen();
+    }
+    requestAnimationFrame(zeichnen);
+  }
+  var letzteLageZeit = 0;
+
+  function markenZeichnen(t) {
+    // Zwei Zeilen fuer die Namen, abwechselnd - sonst schieben sich zwei
+    // Funde dicht hintereinander uebereinander und man liest keinen von beiden.
+    var reihe = 0;
+    ctx.textBaseline = 'middle';
+    for (var i = 0; i < funde.length; i++) {
+      var f = funde[i];
+      var x = breite - (t - f.beginn) * pps;
+      var w = Math.max(f.dauer * pps, 8);
+      if (x > breite || x + w < 0) continue;
+
+      ctx.fillStyle = 'rgba(232,182,76,.12)';
+      ctx.fillRect(x, 0, w, hoehe);
+      ctx.fillStyle = 'rgba(232,182,76,.95)';
+      ctx.fillRect(x, 0, 1.5, hoehe);
+      ctx.fillRect(x + w - 1.5, 0, 1.5, hoehe);
+
+      var y = reihe === 0 ? 16 : 40;
+      reihe = 1 - reihe;
+      var name = f.art || f.wiss || '';
+      ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      var tb = ctx.measureText(name).width;
+      // Das Schild bleibt am Bildrand stehen, statt mit dem Fund hinauszulaufen:
+      // sonst liest man den Namen genau dann nicht, wenn er neu hereinkommt.
+      var sx = Math.min(Math.max(x, 6), Math.max(breite - tb - 14, 6));
+      ctx.fillStyle = 'rgba(11,10,20,.78)';
+      ctx.fillRect(sx - 5, y - 11, tb + 10, 22);
+      ctx.fillStyle = '#f0e2c2';
+      ctx.fillText(name, sx, y);
+    }
+  }
+
+  // --- Anhalten und Zurueckrollen -----------------------------------------
+  // Eine Marke laeuft in rund zehn Sekunden durchs Bild. Wer sie anschauen
+  // will, braucht laenger. Deshalb zweierlei: der Halteknopf, und - viel
+  // direkter - das Band laesst sich mit der Maus anfassen und zurueckziehen.
+  // Weit zurueck geht es, solange der Ring am Pi reicht: gut zwei Minuten.
+
+  function grenzen() {
+    var aeltester = Infinity;
+    bloecke.forEach(function (b) { if (b.beginn < aeltester) aeltester = b.beginn; });
+    var oben = jetzt() - NACHLAUF;
+    if (aeltester === Infinity) return [oben, oben];
+    // So weit zurueck, dass der aelteste Block noch das Bild fuellt.
+    return [Math.min(aeltester + breite / pps, oben), oben];
+  }
+
+  function setzeZeit(t) {
+    var g = grenzen();
+    haltZeit = Math.max(g[0], Math.min(g[1], t));
+    // Die Gegenwartskante wandert waehrend des Ziehens weiter. Deshalb muss
+    // sich der Haltezustand aus der POSITION ergeben, nicht einmalig gesetzt
+    // werden: rechts am Rand ist live, alles davor ist angehalten. Vorher
+    // stand hier nur ein "if (... ) angehalten = false" - das kippte beim
+    // ersten kleinen Zug auf live und kam nie wieder zurueck, sodass sich das
+    // Band ueberhaupt nicht verschieben liess.
+    angehalten = haltZeit < g[1] - 0.5;
+    lageZeigen();
+  }
+
+  function zurueckZuJetzt() { angehalten = false; lageZeigen(); }
+
+  halt.addEventListener('click', function () {
+    if (angehalten) { zurueckZuJetzt(); return; }
+    angehalten = true; haltZeit = jetzt() - NACHLAUF; lageZeigen();
+  });
+
+  band.addEventListener('pointerdown', function (e) {
+    if (e.button != null && e.button !== 0) return;
+    zieht = true; gezogen = 0;
+    ziehX = e.clientX;
+    ziehZeit = zeigezeit();
+    warAngehalten = angehalten;
+    angehalten = true; haltZeit = ziehZeit;
+    band.classList.add('zieht');
+    try { band.setPointerCapture(e.pointerId); } catch (x) {}
+  });
+
+  band.addEventListener('pointermove', function (e) {
+    if (!zieht) return;
+    var dx = e.clientX - ziehX;
+    if (Math.abs(dx) > gezogen) gezogen = Math.abs(dx);
+    // Nach rechts ziehen holt Vergangenheit heran, wie bei einer Papierrolle.
+    setzeZeit(ziehZeit - dx / pps);
+  });
+
+  function ziehEnde(e) {
+    if (!zieht) return;
+    zieht = false;
+    band.classList.remove('zieht');
+    try { band.releasePointerCapture(e.pointerId); } catch (x) {}
+    // Unter fuenf Bildpunkten war es ein Tippen, kein Ziehen: dann nichts
+    // verschieben, sondern die angetippte Marke oeffnen.
+    if (gezogen < 5) {
+      angehalten = warAngehalten;
+      lageZeigen();
+      getroffen(e);
+    }
+  }
+  band.addEventListener('pointerup', ziehEnde);
+  band.addEventListener('pointercancel', ziehEnde);
+
+  // Mausrad und Trackpad ebenfalls - viele greifen eher dorthin als zu ziehen.
+  band.addEventListener('wheel', function (e) {
+    var d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (!d) return;
+    e.preventDefault();
+    if (!angehalten) { angehalten = true; haltZeit = jetzt() - NACHLAUF; }
+    setzeZeit(haltZeit + d / pps);
+  }, { passive: false });
+
+  function getroffen(e) {
+    var r = band.getBoundingClientRect();
+    var mx = e.clientX - r.left;
+    var t = zeigezeit();
+    for (var i = 0; i < funde.length; i++) {
+      var f = funde[i];
+      var x = breite - (t - f.beginn) * pps;
+      var w = Math.max(f.dauer * pps, 8);
+      if (mx >= x - 6 && mx <= x + w + 6) { karteOeffnen(f); return; }
+    }
+  }
+
+  // --- Liste --------------------------------------------------------------
+  // WARUM HIER KEINE ANZAHL STEHT: "146x gehört" waere falsch. BirdNETs
+  // Fenster rueckt nur eine halbe Sekunde weiter, eine durchsingende Amsel
+  // erzeugt also alle 0,5 s eine Erkennung - 146 Stueck bedeuten zwei Minuten
+  // Gesang, nicht 146 Rufe. Ehrlich ist die DAUER des Bogens.
+  function dauerText(f) {
+    if (!f || !(f.dauer > 8)) return '';
+    var s = Math.round(f.dauer);
+    if (s < 60) return s + ' s am Stück';
+    var m = Math.floor(s / 60), r = s % 60;
+    return r ? m + ':' + String(r).padStart(2, '0') + ' Min. am Stück'
+             : m + ' Min. am Stück';
+  }
+
+  function uhrzeit(sek) {
+    var d = new Date(sek * 1000);
+    return String(d.getHours()).padStart(2, '0') + ':' +
+           String(d.getMinutes()).padStart(2, '0') + ':' +
+           String(d.getSeconds()).padStart(2, '0');
+  }
+
+  // Nach dem ENDE des Bogens, nicht nach dem Anfang: Ein Vogel, der seit drei
+  // Minuten durchsingt, soll oben stehen und nicht unter die neueren rutschen.
+  function ende_zuerst(a, b) {
+    return (b.beginn + (b.dauer || 0)) - (a.beginn + (a.dauer || 0));
+  }
+
+  var listeStand = null;
+  function listeBauen() {
+    var neueste = funde.slice().sort(ende_zuerst).slice(0, 12);
+    // Nur neu bauen, wenn sich wirklich etwas geaendert hat. Sonst wuerde die
+    // Liste alle fuenf Sekunden verworfen - mitten in einem Antippen, und ein
+    // gerade laufender Knopf verloere seine Markierung.
+    var stand = neueste.map(function (f) { return f.beginn + '|' + f.datei; }).join(',');
+    if (stand === listeStand) return;
+    listeStand = stand;
+    leer.style.display = neueste.length ? 'none' : '';
+    liste.textContent = '';
+    neueste.forEach(function (f) {
+      var li = document.createElement('li');
+      var u = document.createElement('span');
+      u.className = 'uhr';
+      u.textContent = uhrzeit(f.beginn);
+      var w = document.createElement('div');
+      w.className = 'wer';
+      w.setAttribute('role', 'button');
+      w.setAttribute('tabindex', '0');
+      var b = document.createElement('b');
+      // textContent, nicht innerHTML: Artnamen kommen aus der Erkennung und
+      // haben in dieser App schon einmal fuer eine Luecke gesorgt.
+      b.textContent = f.art || f.wiss || 'unbekannt';
+      var s = document.createElement('span');
+      // "3x" statt drei gleich klingender Zeilen: BirdNET bewertet denselben
+      // Ruf mehrfach (Fenster rueckt nur eine halbe Sekunde weiter). Der Pi
+      // buendelt das; hier steht, wie oft es angeschlagen hat.
+      var d = dauerText(f);
+      s.textContent = Math.round((f.sicher || 0) * 100) + ' % sicher'
+        + (d ? ' · ' + d : '')
+        + (f.ton === false ? ' · Aufnahme kommt gleich' : '');
+      w.appendChild(b); w.appendChild(s);
+      w.addEventListener('click', function () { karteOeffnen(f); });
+      w.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); karteOeffnen(f); }
+      });
+      var k = document.createElement('button');
+      k.className = 'hoeren';
+      k.type = 'button';
+      k.setAttribute('aria-label', 'Aufnahme anhören');
+      k.textContent = f.ton === false ? '…' : '▶';
+      // Der Pi meldet, ob der Ausschnitt schon liegt. Gemessen braucht BirdNET
+      // dafuer 11 bis 22 Sekunden - also knapp so lange wie unser Nachlauf.
+      // Meist ist er da; ist er es nicht, wartet der Knopf sichtbar, statt
+      // tot zu wirken. Der naechste Abruf in fuenf Sekunden holt ihn nach.
+      if (!f.datei || f.ton === false) { k.disabled = true; k.style.opacity = '.4'; }
+      k.addEventListener('click', function (e) { e.stopPropagation(); abspielen(f, k); });
+      li.appendChild(u); li.appendChild(w); li.appendChild(k);
+      liste.appendChild(li);
+    });
+  }
+
+  // --- Infokarte ----------------------------------------------------------
+  // Legt sich UEBER die Live-Ansicht, statt sie zu ersetzen. Das Band laeuft
+  // darunter weiter, und das x bringt einen genau dorthin zurueck - man
+  // verliert seine Stelle nicht.
+  var karte = document.getElementById('karte');
+  var kFoto = document.getElementById('karte-foto');
+  var kName = document.getElementById('karte-name');
+  var kWann = document.getElementById('karte-wann');
+  var kTon = document.getElementById('karte-ton');
+  var kTonZ = document.getElementById('karte-ton-zeichen');
+  var kTonT = document.getElementById('karte-ton-text');
+  var kText = document.getElementById('karte-text');
+  var kQuelle = document.getElementById('karte-quelle');
+
+  function karteOeffnen(f) {
+    offenerFund = f;
+    kName.textContent = f.art || f.wiss || 'Unbekannt';
+    var teile = [];
+    if (f.wiss) teile.push(f.wiss);
+    teile.push(uhrzeit(f.beginn) + ' Uhr');
+    teile.push(Math.round((f.sicher || 0) * 100) + ' % sicher');
+    var dd = dauerText(f);
+    if (dd) teile.push(dd);
+    kWann.textContent = teile.join(' · ');
+
+    tonKnopfStellen(f);
+    kText.textContent = '';
+    kQuelle.textContent = '';
+    kFoto.hidden = true;
+    kFoto.removeAttribute('src');
+    karte.hidden = false;
+    document.body.style.overflow = 'hidden';
+    kTon.focus();
+    fotoHolen(f.wiss);
+    infosHolen(f.wiss);
+  }
+
+  // Bewusst getrennt vom Text: Faellt Wikipedia aus, soll trotzdem das Foto
+  // kommen - und umgekehrt. Vorher hing beides am selben Abruf.
+  function fotoHolen(wiss) {
+    if (!wiss) return;
+    kFoto.onload = function () {
+      if (offenerFund && offenerFund.wiss === wiss) kFoto.hidden = false;
+    };
+    kFoto.onerror = function () { kFoto.hidden = true; };
+    kFoto.src = '/avian/api/vogelbilder.php?sci=' + encodeURIComponent(wiss) + '&bild=0';
+  }
+
+  function tonKnopfStellen(f) {
+    var da = !!(f && f.datei) && f.ton !== false;
+    kTon.disabled = !da;
+    kTonZ.textContent = da ? '▶' : '⋯';
+    kTonT.textContent = da ? 'Aufnahme anhören' : 'Aufnahme kommt gleich';
+    kTon.classList.remove('laeuft');
+  }
+
+  function karteSchliessen() {
+    stoppen();
+    karte.hidden = true;
+    offenerFund = null;
+    document.body.style.overflow = '';
+  }
+
+  document.getElementById('karte-zu').addEventListener('click', karteSchliessen);
+  document.getElementById('karte-hg').addEventListener('click', karteSchliessen);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !karte.hidden) karteSchliessen();
+  });
+  kTon.addEventListener('click', function () {
+    if (offenerFund) abspielen(offenerFund, kTon);
+  });
+
+  // Die Angaben zur Art holt sich die Seite bei denselben Quellen wie die
+  // Vogelkarte der Hauptseite - beide liegen auf diesem Server, damit die
+  // Inhaltsregel (img-src 'self') sie ueberhaupt laden darf.
+  function infosHolen(wiss) {
+    if (!wiss) return;
+    var fertig = wissen.get(wiss);
+    if (fertig) { infosZeigen(wiss, fertig); return; }
+
+    fetch('/avian/api/wiki.php?sci=' + encodeURIComponent(wiss),
+          { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        d = d || {};
+        // paragraphs ist bereits eine saubere Liste von Absaetzen - besser als
+        // extract selbst zu zerschneiden. Notfalls extract als Rueckfall.
+        var absaetze = Array.isArray(d.paragraphs) && d.paragraphs.length
+          ? d.paragraphs
+          : String(d.extract || '').split(/\n+/);
+        // ACHTUNG: d.source ist ein OBJEKT {name, url, license}, kein Text.
+        // Es einfach anzuhaengen ergab "Text: [object Object]" unten in der
+        // Karte. Die Lizenz CC BY-SA verlangt ohnehin Nennung UND Verweis.
+        var q = (d.source && typeof d.source === 'object') ? d.source : null;
+        var w = {
+          absaetze: absaetze,
+          titel: String(d.title || ''),
+          quelle: q ? {
+            name: String(q.name || ''),
+            url: String(q.url || ''),
+            lizenz: String(q.license || '')
+          } : null
+        };
+        wissen.set(wiss, w);
+        infosZeigen(wiss, w);
+      })
+      .catch(function () { /* ohne Text ist die Karte immer noch nuetzlich */ });
+  }
+
+  function infosZeigen(wiss, w) {
+    // Nur zeigen, wenn die Karte noch dieselbe Art zeigt - wer schnell
+    // weiterklickt, soll nicht den Text des vorigen Vogels bekommen.
+    if (!offenerFund || offenerFund.wiss !== wiss) return;
+    kText.textContent = '';
+    (w.absaetze || []).slice(0, 3).forEach(function (satz) {
+      satz = String(satz || '').trim();
+      if (!satz) return;
+      var p = document.createElement('p');
+      p.textContent = satz;
+      kText.appendChild(p);
+    });
+
+    kQuelle.textContent = '';
+    if (w.quelle && w.quelle.name) {
+      kQuelle.appendChild(document.createTextNode('Text: '));
+      if (w.quelle.url && /^https:\/\//.test(w.quelle.url)) {
+        var a = document.createElement('a');
+        a.href = w.quelle.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = w.titel ? w.titel + ' – ' + w.quelle.name : w.quelle.name;
+        kQuelle.appendChild(a);
+      } else {
+        kQuelle.appendChild(document.createTextNode(
+          w.titel ? w.titel + ' – ' + w.quelle.name : w.quelle.name));
+      }
+      if (w.quelle.lizenz) {
+        kQuelle.appendChild(document.createTextNode(', ' + w.quelle.lizenz));
+      }
+    }
+  }
+
+  // --- Vogelreihe ---------------------------------------------------------
+  // Je Art nur der juengste Fund: Ein Zilpzalp, der zwanzigmal ruft, soll die
+  // Reihe nicht fuellen und die anderen hinausdraengen.
+  var galerieStand = null;
+  function galerieBauen() {
+    var gesehen = new Set();
+    var arten = [];
+    funde.slice().sort(ende_zuerst)
+      .forEach(function (f) {
+        var k = f.wiss || f.art;
+        if (!k || gesehen.has(k)) return;
+        gesehen.add(k);
+        arten.push(f);
+      });
+    arten = arten.slice(0, 10);
+
+    var stand = arten.map(function (f) { return f.wiss + '@' + f.beginn; }).join(',');
+    if (stand === galerieStand) return;   // nichts Neues, stehen lassen
+    galerieStand = stand;
+
+    galerie.hidden = arten.length === 0;
+    galerie.textContent = '';
+    arten.forEach(function (f) {
+      var k = document.createElement('button');
+      k.className = 'vogel';
+      k.type = 'button';
+      var bild = document.createElement('img');
+      bild.className = 'leer';
+      bild.alt = '';
+      bild.loading = 'lazy';
+      bild.decoding = 'async';
+      // Dieselbe Quelle wie die Collage: freigestellte Zeichnung mit
+      // durchsichtigem Hintergrund. Erst zeigen, wenn sie da ist - sonst
+      // blitzt kurz ein kaputtes Bildsymbol auf.
+      bild.onload = function () { bild.classList.remove('leer'); };
+      bild.onerror = function () { bild.remove(); };
+      bild.src = '/avian/api/cutout.php?sci=' + encodeURIComponent(f.wiss || '');
+      var name = document.createElement('b');
+      name.textContent = f.art || f.wiss || 'unbekannt';
+      var wann = document.createElement('span');
+      wann.textContent = uhrzeit(f.beginn);
+      k.appendChild(bild); k.appendChild(name); k.appendChild(wann);
+      k.addEventListener('click', function () { karteOeffnen(f); });
+      galerie.appendChild(k);
+    });
+  }
+
+  // --- Ton ----------------------------------------------------------------
+  // Es wird nur das abgespielt, was BirdNET bei einer Erkennung ohnehin
+  // ausschneidet - dieselbe Datei, die auch auf der Vogelkarte liegt. Ein
+  // Dauerton verlaesst den Garten nie.
+  function abspielen(f, knopf) {
+    if (!f.datei) return;
+    stoppen();
+    ton = new Audio('/eigenes/live.php?was=aufnahme&datei=' + encodeURIComponent(f.datei));
+    tonDatei = f.datei;
+    if (knopf) {
+      knopf.classList.add('laeuft');
+      ton.addEventListener('ended', function () { knopf.classList.remove('laeuft'); });
+      ton.addEventListener('error', function () { knopf.classList.remove('laeuft'); });
+    }
+    ton.play().catch(function () { if (knopf) knopf.classList.remove('laeuft'); });
+  }
+
+  function stoppen() {
+    if (!ton) return;
+    try { ton.pause(); ton.src = ''; } catch (e) {}
+    ton = null; tonDatei = null;
+    Array.prototype.forEach.call(document.querySelectorAll('.hoeren.laeuft, #karte-ton.laeuft'),
+      function (k) { k.classList.remove('laeuft'); });
+  }
+
+  // Beim Verlassen der Seite verstummt alles - auch wenn der Browser die
+  // Seite nur in den Hintergrund legt statt sie zu entladen.
+  window.addEventListener('pagehide', stoppen);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stoppen(); else abrufen();
+  });
+
+  // --- Zurueck ------------------------------------------------------------
+  document.getElementById('zurueck').addEventListener('click', function () {
+    if (document.referrer && document.referrer.indexOf(location.origin) === 0) history.back();
+    else location.href = '/';
+  });
+
+  // --- Los ----------------------------------------------------------------
+  messen();
+  melden('warte');
+  abrufen();
+  setInterval(abrufen, 5000);
+  requestAnimationFrame(zeichnen);
+})();
+</script>

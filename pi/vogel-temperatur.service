@@ -1,0 +1,11 @@
+[Unit]
+Description=Temperaturwaechter - schaltet den Pi bei Ueberhitzung ab
+After=multi-user.target
+
+[Service]
+ExecStart=/usr/local/bin/temperatur_waechter.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

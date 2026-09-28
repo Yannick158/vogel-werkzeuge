@@ -1,0 +1,32 @@
+[Unit]
+Description=Fehlende Vogel-Illustrationen nachziehen
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=admin
+Group=admin
+# bis zu drei Arten je Lauf, je hoechstens 600 s
+TimeoutStartSec=2100
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /srv/avian/vogelbilder-nachziehen.py
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vogel-vogelbild
+
+# Haertung - schreiben muss der Dienst nur in den Illustrationsordner,
+# die Sperrdatei und den Fehlerbuch-Eintrag daneben.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

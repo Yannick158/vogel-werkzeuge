@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zustand der Anlage</title>
+<style>
+  :root { --grund:#faf7f0; --tinte:#2b2b2b; --leise:#8a8175; --linie:#e0d9cc;
+          --ok:#5a6b4a; --warn:#7a6a3a; --krit:#6b2d2d; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--grund); color:var(--tinte);
+         font:16px/1.6 Georgia,'Times New Roman',serif; }
+  .seite { max-width:680px; margin:0 auto; padding:40px 22px 80px; }
+  h1 { font-size:1.9em; letter-spacing:.06em; font-weight:normal; margin:.2em 0 .1em; }
+  .unter { color:var(--leise); font-style:italic; margin:0 0 2em; }
+  .karte { border:1px solid var(--linie); border-radius:12px; padding:20px 22px; margin:0 0 20px;
+           background:rgba(255,255,255,.4); }
+  .karte h2 { font-size:1.05em; letter-spacing:.04em; margin:0 0 14px; font-weight:normal; color:var(--leise);
+              text-transform:uppercase; }
+  .gross { font-size:2.2em; letter-spacing:.02em; }
+  .zeile { display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; }
+  .zeile .wert { font-variant-numeric:tabular-nums; }
+  .ampel { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:8px; vertical-align:middle; }
+  .a-ok{background:var(--ok)} .a-warn{background:var(--warn)} .a-krit{background:var(--krit)}
+  svg { width:100%; height:auto; display:block; }
+  .meldung { padding:10px 14px; border-radius:8px; margin:8px 0; font-size:.95em; }
+  .m-warn { background:#f3edda; border-left:3px solid var(--warn); }
+  .m-krit { background:#f2e0e0; border-left:3px solid var(--krit); }
+  .m-rat { color:var(--leise); font-size:.9em; margin-top:3px; }
+  .knopf { display:inline-block; border:1px solid var(--linie); border-radius:8px;
+           padding:9px 16px; margin:4px 8px 4px 0; text-decoration:none; color:var(--tinte);
+           background:rgba(255,255,255,.6); font-size:.95em; }
+  .knopf:hover { background:#fff; }
+  .achse { font-size:11px; fill:var(--leise); font-family:ui-monospace,monospace; }
+  .zurueck { color:var(--leise); text-decoration:none; font-size:.9em; }
+  @media (prefers-color-scheme: dark) {
+    :root { --grund:#1c1a17; --tinte:#e8e2d6; --leise:#9a9184; --linie:#3a352d; }
+    .karte{background:rgba(255,255,255,.03)} .knopf{background:rgba(255,255,255,.05)}
+  }
+</style>
+</head>
+<body>
+<div class="seite">
+  <a class="zurueck" href="/">← zurück zur Anzeige</a>
+  <h1>Zustand der Anlage</h1>
+  <p class="unter">Wie es dem Vogel-Lauscher geht.</p>
+
+  <div class="karte" id="karte-gesamt">
+    <h2>Jetzt</h2>
+    <div id="gesamt">lädt …</div>
+    <div id="meldungen"></div>
+  </div>
+
+  <div class="karte">
+    <h2>Online in den letzten 7 Tagen</h2>
+    <div id="online-zahl" class="gross">–</div>
+    <div id="online-diagramm"></div>
+  </div>
+
+  <div class="karte">
+    <h2>Temperatur des Pi</h2>
+    <div id="temp-diagramm"></div>
+  </div>
+
+  <div class="karte">
+    <h2>Vögel als Tabelle</h2>
+    <p style="margin:.2em 0 1em;color:var(--leise);font-size:.95em">Öffnet sich als CSV-Datei, die sich in Excel oder Numbers öffnen lässt.</p>
+    <a class="knopf" href="/eigenes/export.php?was=arten">Nach Arten</a>
+    <a class="knopf" href="/eigenes/export.php?was=liste">Jede Erkennung einzeln</a>
+  </div>
+</div>
+
+<script>
+function stunden(s){ if(!s) return '–'; var t=Math.floor(s/86400), st=Math.floor(s%86400/3600);
+  return t>0 ? t+' Tg '+st+' Std' : st+' Std'; }
+
+function zeitlabel(epoche){ var d=new Date(epoche*1000);
+  return d.getDate()+'.'+(d.getMonth()+1)+'.'; }
+
+// Balkendiagramm: pro Tag der Anteil online, als SVG.
+function onlineDiagramm(punkte){
+  if(!punkte.length) return '<p style="color:var(--leise)">Noch keine Daten – das Diagramm füllt sich über die nächsten Tage.</p>';
+  // nach Tag gruppieren
+  var tage={};
+  punkte.forEach(function(p){
+    var d=new Date(p.t*1000); var k=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
+    if(!tage[k]) tage[k]={on:0,n:0,label:zeitlabel(p.t)};
+    tage[k].n++; if(p.on) tage[k].on++;
+  });
+  var keys=Object.keys(tage);
+  var W=620,H=140,pad=24,bw=(W-pad*2)/keys.length;
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Online-Anteil pro Tag">';
+  keys.forEach(function(k,i){
+    var t=tage[k], anteil=t.on/t.n, h=(H-pad*2)*anteil;
+    var x=pad+i*bw+bw*0.15, y=H-pad-h, bwi=bw*0.7;
+    var farbe=anteil>0.9?'var(--ok)':anteil>0.5?'var(--warn)':'var(--krit)';
+    s+='<rect x="'+x+'" y="'+y+'" width="'+bwi+'" height="'+h+'" rx="2" fill="'+farbe+'"><title>'+t.label+' '+Math.round(anteil*100)+'% online</title></rect>';
+    s+='<text class="achse" x="'+(x+bwi/2)+'" y="'+(H-pad+14)+'" text-anchor="middle">'+t.label+'</text>';
+    s+='<text class="achse" x="'+(x+bwi/2)+'" y="'+(y-4)+'" text-anchor="middle">'+Math.round(anteil*100)+'</text>';
+  });
+  s+='</svg>';
+  return s;
+}
+
+// Temperatur als Linie
+function tempDiagramm(punkte){
+  var mit=punkte.filter(function(p){return p.temp>0;});
+  if(mit.length<2) return '<p style="color:var(--leise)">Noch zu wenig Daten.</p>';
+  var W=620,H=130,pad=28;
+  var temps=mit.map(function(p){return p.temp;});
+  var min=Math.min.apply(null,temps)-2, max=Math.max.apply(null,temps)+2;
+  var t0=mit[0].t, t1=mit[mit.length-1].t, spanne=Math.max(1,t1-t0);
+  function x(t){return pad+(t-t0)/spanne*(W-pad*2);}
+  function y(v){return H-pad-(v-min)/(max-min)*(H-pad*2);}
+  var d=mit.map(function(p,i){return (i?'L':'M')+x(p.t).toFixed(1)+' '+y(p.temp).toFixed(1);}).join(' ');
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Temperaturverlauf">';
+  // Warnlinie bei 70 Grad
+  if(max>=70){ var yw=y(70); s+='<line x1="'+pad+'" y1="'+yw+'" x2="'+(W-pad)+'" y2="'+yw+'" stroke="var(--warn)" stroke-dasharray="3 3" opacity=".5"/><text class="achse" x="'+(W-pad)+'" y="'+(yw-3)+'" text-anchor="end" fill="var(--warn)">70°</text>'; }
+  s+='<path d="'+d+'" fill="none" stroke="var(--tinte)" stroke-width="1.5" opacity=".7"/>';
+  s+='<text class="achse" x="'+pad+'" y="14">'+Math.round(max)+'°</text>';
+  s+='<text class="achse" x="'+pad+'" y="'+(H-pad+14)+'">'+Math.round(min)+'°</text>';
+  s+='<text class="achse" x="'+x(mit[mit.length-1].t)+'" y="'+(H-8)+'" text-anchor="end">jetzt '+mit[mit.length-1].temp+'°</text>';
+  s+='</svg>';
+  return s;
+}
+
+Promise.all([
+  fetch('/eigenes/zustand.php',{credentials:'same-origin'}).then(function(r){return r.json();}),
+  fetch('/eigenes/verlauf.php?tage=7',{credentials:'same-origin'}).then(function(r){return r.json();})
+]).then(function(res){
+  var z=res[0], v=res[1];
+  var ampel=z.stufe==='kritisch'?'a-krit':z.stufe==='warnung'?'a-warn':'a-ok';
+  var wort=z.stufe==='kritisch'?'Es klemmt':z.stufe==='warnung'?'Kleinigkeit':'Alles läuft';
+  document.getElementById('gesamt').innerHTML =
+    '<div class="zeile"><span><span class="ampel '+ampel+'"></span>'+wort+'</span></div>'+
+    '<div class="zeile"><span>Pi läuft seit</span><span class="wert">'+stunden(z.pi.laufzeit)+'</span></div>'+
+    '<div class="zeile"><span>Temperatur</span><span class="wert">'+(z.pi.temperatur||'–')+' °C</span></div>'+
+    '<div class="zeile"><span>Letzter Kontakt vor</span><span class="wert">'+(z.pi.letzter_abgleich_vor_sekunden!=null?Math.round(z.pi.letzter_abgleich_vor_sekunden/60)+' Min':'–')+'</span></div>';
+  var mh='';
+  (z.meldungen||[]).forEach(function(m){
+    mh+='<div class="meldung '+(m.stufe==='kritisch'?'m-krit':'m-warn')+'">'+m.text+
+        (m.rat?'<div class="m-rat">'+m.rat+'</div>':'')+'</div>';
+  });
+  document.getElementById('meldungen').innerHTML=mh;
+  document.getElementById('online-zahl').textContent =
+    (v.online_anteil!=null? v.online_anteil+' % online' : 'sammelt Daten …');
+  document.getElementById('online-diagramm').innerHTML = onlineDiagramm(v.punkte||[]);
+  document.getElementById('temp-diagramm').innerHTML = tempDiagramm(v.punkte||[]);
+}).catch(function(){
+  document.getElementById('gesamt').textContent='Konnte den Zustand nicht laden.';
+});
+</script>
+</body>
+</html>

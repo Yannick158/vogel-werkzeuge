@@ -1,0 +1,41 @@
+# Caddy vor dem Vogel-Server - Uebergangsstand ohne Domain.
+#
+# Erreichbar ueber die nackte Adresse, unverschluesselt. Das ist zum
+# Anschauen gedacht, NICHT fuer den Pi: Dessen Zugangstoken darf nicht
+# unverschluesselt uebers Netz. Der Pi bleibt so lange auf dem alten Weg.
+#
+# Sobald die Domain da ist, ersetzt sie diesen Block - dann holt Caddy
+# selbstaendig Zertifikate und alles laeuft ueber HTTPS.
+
+{
+    # Keine automatische Weiterleitung auf HTTPS: Fuer eine nackte IP gibt es
+    # (noch) kein Zertifikat, das der Browser akzeptiert.
+    auto_https off
+}
+
+:80 {
+    encode gzip zstd
+
+    header {
+        # Der Browser soll Dateitypen nicht raten - sonst kann eine als Bild
+        # ausgelieferte Datei als Skript ausgefuehrt werden.
+        X-Content-Type-Options "nosniff"
+        # Die Adresse dieser Seite verraet den Standort. Sie soll beim
+        # Weiterklicken nicht an fremde Seiten weitergereicht werden.
+        Referrer-Policy "no-referrer"
+        # Die Seite darf nicht in einen fremden Rahmen eingebettet werden.
+        X-Frame-Options "SAMEORIGIN"
+        # Serverkennung entfernen
+        -Server
+    }
+
+    # Die Ingest-Schnittstelle nimmt kleine JSON-Pakete entgegen. Ein Riegel
+    # gegen aufgeblaehte Anfragen, die den Speicher der kleinen Maschine
+    # fuellen wuerden, bevor die Anwendung sie ueberhaupt zaehlen kann.
+    @ingest path /api/v1/ingest/*
+    request_body @ingest {
+        max_size 2MB
+    }
+
+    reverse_proxy 127.0.0.1:8090
+}

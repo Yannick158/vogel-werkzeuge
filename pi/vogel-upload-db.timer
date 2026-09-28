@@ -1,0 +1,12 @@
+[Unit]
+Description=Datenbank alle zwei Minuten zum Server hochladen
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+RandomizedDelaySec=10
+# Kein Persistent: Bei einem Zwei-Minuten-Takt gibt es nichts nachzuholen -
+# nach einem Neustart ist der naechste Lauf ohnehin gleich faellig.
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,83 @@
+[Unit]
+# Beantwortet die Fragen des Live-Modus: welche Bloecke liegen bereit, was
+# wurde darin gefunden, wie sieht ein Block als Spektrogramm aus, und - nur
+# auf Klick - der Tonausschnitt einer einzelnen Erkennung.
+#
+# Hoert ausschliesslich auf 127.0.0.1. Nach aussen fuehrt allein der
+# bestehende Rueckwaerts-Tunnel zum Server, und dort liegt das Anmeldetor
+# davor. Wer den Port erreichen will, muss also erst am Login vorbei.
+Description=Vogel-Live: Streifen und Funde fuer den Live-Modus
+After=network.target vogel-live-mitschnitt.service
+Wants=vogel-live-mitschnitt.service
+
+[Service]
+Type=simple
+User=vogel
+Group=vogel
+# Am 10.09.2026 am echten Gartenton ausgemessen, nicht geschaetzt.
+# Die Voreinstellung im Code (drange=75:limit=0) ergab hier ein fast
+# schwarzes Bild: der Pegel je Frequenzband liegt in diesem Garten viel
+# tiefer als angenommen - kein Band kam ueber -50 dBFS. Gemessen wurde gegen
+# zwei Massstaebe zugleich, einen Hintergrundblock und eine echte
+# Zilpzalp-Aufnahme, damit der Grund dunkel bleibt UND Gesang leuchtet.
+#
+# Der Hochpass bleibt bei 180 Hz. Hoeher (400, 700) raeumt den Hintergrund
+# nicht auf - das Rauschen ist breitbandig -, laesst aber die Ringeltaube
+# verschwinden, die tief ruft. Falscher Handel in dieser App.
+#
+# Steht hier und nicht im Code, weil es eine Eigenschaft DIESES Gartens ist:
+# anderes Mikrofon, andere Umgebung, andere Werte.
+Environment=VOGEL_LIVE_BILD=color=fire:scale=log:gain=1:drange=40:limit=-55
+ExecStart=/usr/bin/python3 /home/vogel/vogel-live/live_dienst.py \
+    --ring /run/vogel-live \
+    --db /home/vogel/BirdNET-Pi/scripts/birds.db \
+    --ausschnitte /home/vogel/BirdSongs/Extracted/By_Date \
+    --port 8091
+Restart=always
+RestartSec=5
+
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/run/vogel-live
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+# Nur IP fuer die Rueckschleife; nichts davon geht nach draussen.
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressAllow=localhost
+IPAddressDeny=any
+
+# --- Abschottung ----------------------------------------------------------
+# Am 10.09.2026 mit `systemd-analyze security` nachgezogen: der Dienst stand
+# vorher bei 7,5 ("EXPOSED"). Er nimmt Anfragen entgegen und liefert Dateien
+# aus - das ist genau die Sorte Dienst, die wenig duerfen sollte.
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectClock=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @obsolete
+RemoveIPC=yes
+UMask=0077
+# Der Dienst liest nur Dateien und rechnet - Geraete braucht er keine.
+# (Am 11.09.2026 kurz anders: da fuehrte er ffmpeg selbst, um nur bei Bedarf
+#  aufzunehmen. Zurueckgenommen - der Dauermitschnitt kostet zwar 3 % eines
+#  Kerns, dafuer LIEST ein Webaufruf nur, statt ein Mikrofon anzuschalten.)
+PrivateDevices=yes
+MemoryMax=192M
+
+[Install]
+WantedBy=multi-user.target

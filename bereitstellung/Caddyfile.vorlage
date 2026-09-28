@@ -1,0 +1,35 @@
+# Caddy vor dem Vogel-Server.
+#
+# Caddy holt und erneuert die Zertifikate von selbst, sobald ein Name auf
+# diesen Server zeigt - kein Cronjob, kein certbot.
+#
+# Bis eine Domain da ist, laeuft alles ueber den ersten Block: unverschluesselt
+# ueber die nackte Adresse, nur zum Ausprobieren.
+
+# --- Uebergang: Zugriff ueber die IP, ohne Verschluesselung ---------------
+# Sobald die Domain steht, diesen Block loeschen. Ueber diesen Weg gehen
+# KEINE Geraete-Tokens - der Pi bleibt so lange auf dem alten Weg.
+http://203.0.113.10 {
+    reverse_proxy 127.0.0.1:8090
+}
+
+# --- Sobald die Domain da ist: je Standort ein Name -----------------------
+# zweitstandort.DEINE-DOMAIN.de {
+#     redir / /collage/zweitstandort 302
+#     reverse_proxy 127.0.0.1:8090
+# }
+#
+# zweitstandort.DEINE-DOMAIN.de {
+#     redir / /collage/zweitstandort 302
+#     reverse_proxy 127.0.0.1:8090
+# }
+#
+# --- Und die eigene Website, voellig unabhaengig davon --------------------
+# deine-website.de, www.deine-website.de {
+#     root * /srv/website
+#     file_server
+#     encode gzip zstd
+# }
+
+# Der `redir` ist noetig, weil "/" im Code fest auf den Standard-Standort
+# zeigt. Ohne ihn landen alle Namen auf zweitstandort.

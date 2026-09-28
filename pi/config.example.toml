@@ -1,0 +1,44 @@
+# Konfiguration des Uplink-Dienstes auf dem Raspberry Pi.
+#
+# Kopieren nach einem dieser Orte (der erste gefundene gewinnt):
+#   /etc/avian-uplink/config.toml
+#   ~/.avian-uplink/config.toml
+#   neben avian_uplink.py
+#
+# Jeder Wert lässt sich auf der Kommandozeile überschreiben, siehe --help.
+
+# Adresse des Vogel-Servers. Beim Testen im Heimnetz die IP des Rechners,
+# auf dem Docker läuft - nicht "localhost", das wäre der Pi selbst.
+server_url = "http://192.168.1.50:8090"
+
+# Zugangsschlüssel des Geräts. Steht in server/.env als DEVICE_TOKEN.
+device_token = "dev-token-zweitstandort"
+
+# Name dieses Geräts. Muss zum eingetragenen Gerät auf dem Server passen.
+device_id = "pi-zweitstandort-01"
+
+# Datenbank von BirdNET-Pi. Wird nur lesend geöffnet.
+db_path = "/home/vogel/BirdNET-Pi/scripts/birds.db"
+db_table = "detections"
+
+# Zeitzone der Rohzeiten in der Datenbank. BirdNET-Pi speichert lokale Zeit
+# ohne Zonenangabe; der Server rechnet damit auf UTC um.
+tz = "Europe/Beispielstadt"
+
+# Wie oft nach neuen Erkennungen gesehen wird. Der Server kann diesen Wert
+# über die Antwort auf das Lebenszeichen anpassen.
+poll_interval_s = 60
+
+# Wie viele Erkennungen höchstens in einer Sendung zusammengefasst werden.
+batch_max = 200
+
+# Wo Zwischenspeicher und Übertragungspuffer liegen.
+state_dir = "~/.avian-uplink"
+
+# Zeitlimit für eine Übertragung, in Sekunden.
+http_timeout_s = 45
+
+# Ausweichweg, falls die Datenbankdatei nicht lesbar ist (andere Rechte oder
+# anderer Rechner): Erkennungen über die Weboberfläche von BirdNET-Pi holen.
+# Leer lassen, solange der direkte Weg funktioniert.
+http_source_url = ""

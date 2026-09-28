@@ -1,0 +1,68 @@
+# Caddy fuer die Original-Oberflaeche von AvianVisitors auf dem Server.
+#
+# Die Daten kommen vom Pi: birds.db und die Aufnahmen werden alle zehn Minuten
+# hochgeladen und sind hier verlinkt. Die Oberflaeche selbst ist unveraendert
+# die des Originals - sie rechnet ihre Pfade relativ aus, deshalb genuegt es,
+# die Verzeichnisstruktur des Pi nachzubauen.
+#
+# WAS BEWUSST GESPERRT IST: Alle Endpunkte, die den Rechner steuern, auf dem
+# sie laufen - Einstellungen, Systemzustand, Dienste-Neustart, Wartung,
+# Archivierung. Auf dem Server wuerden sie ueber den SERVER berichten statt
+# ueber den Pi, oder ins Leere laufen. Die Station wird weiterhin am Pi
+# eingestellt, nicht von aussen.
+
+{
+    auto_https off
+}
+
+:80 {
+    root * /srv/avian/webroot
+    encode gzip zstd
+
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+
+    # --- Gesperrt bleibt nur, was den Server wirklich anfassen wuerde ---
+    # maintenance.php und archive.php rufen Helfer mit Root-Rechten auf,
+    # generate.php startet einen Python-Prozess mit dem Gemini-Schluessel.
+    # Auf einem Server im Internet hat all das nichts verloren.
+    # admin-auth.php ist eine Bibliothek und wird nie direkt aufgerufen.
+    @gesperrt path /avian/api/maintenance.php /avian/api/archive.php \
+                   /avian/api/generate.php /avian/api/admin-auth.php
+    respond @gesperrt 404
+
+    # --- Gesperrt: die Verwaltungsseiten von BirdNET-Pi selbst ---
+    @pi_seiten path /scripts/* /stats.php /overview.php /history.php \
+                    /todays_detections.php /weekly_report.php /play.php \
+                    /views.php /index.php /phpsysinfo/*
+    respond @pi_seiten 404
+
+    # --- Anzeige: ohne Anmeldung, das ist die Wandanzeige ---
+    # --- Menue und Einstellungen: hinter dem Passwort des Originals ---
+    #     (Benutzer "birdnet", Passwort aus AV_ADMIN_PASSWORD; die Abfrage
+    #      erzwingt AV_REQUIRE_AUTH=1, sonst haelt die Anwendung jede ueber
+    #      Caddy weitergereichte Anfrage faelschlich fuer eine oertliche.)
+    @php path /avian/api/birdnet-api.php /avian/api/cutout.php \
+              /avian/api/wiki.php /avian/api/recording.php \
+              /avian/api/spectrogram.php /avian/api/menu.php \
+              /avian/api/config.php /avian/api/birdnet-status.php \
+              /avian/api/export.php
+
+    # Die Reihenfolge ist hier ausdruecklich festgelegt, und der zweite Schritt
+    # ist eine Sicherung gegen einen leisen, aber ernsten Fehler:
+    # Faellt PHP-FPM aus oder stimmt der Socket-Pfad nach einem Versionswechsel
+    # nicht mehr, greift `php_fastcgi` still nicht - und ohne diesen Riegel
+    # wuerde `file_server` die PHP-Datei dann als KLARTEXT ausliefern.
+    # Genau das ist im Originalprojekt passiert (dortiges Issue 1).
+    route {
+        php_fastcgi @php unix//run/php/php-fpm.sock
+        # Was hier ankommt, ist entweder gesperrt oder PHP-FPM war nicht da.
+        @restliches_php path *.php
+        respond @restliches_php 404
+        file_server
+    }
+}

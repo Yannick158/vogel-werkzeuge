@@ -1,0 +1,13 @@
+[Unit]
+Description=Sicherheitsnetz - alle vier Stunden fehlende Vogelbilder nachziehen
+
+[Timer]
+# versetzt zum Artenvideo (01,05,09,13,17,21:20), damit sich die beiden
+# nicht denselben Kern teilen
+OnCalendar=*-*-* 03,07,11,15,19,23:40:00
+Persistent=true
+RandomizedDelaySec=600
+Unit=vogel-vogelbild.service
+
+[Install]
+WantedBy=timers.target

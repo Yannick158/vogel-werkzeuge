@@ -1,0 +1,83 @@
+[Unit]
+# Haelt die letzten gut zwei Minuten Garten im Arbeitsspeicher bereit, damit
+# der Live-Modus sofort loslegen kann statt erst zwanzig Sekunden zu sammeln.
+#
+# Warum ein eigener Mitschnitt und nicht BirdNETs Dateien: BirdNET loescht
+# seine 15-Sekunden-Bloecke rund sechs Sekunden nach der Analyse. Wer daran
+# haengt, bekommt Loecher im Band. Ueber ALSA-dsnoop (siehe /etc/asound.conf)
+# lesen beide dasselbe Mikrofon, ohne sich in die Quere zu kommen.
+#
+# Warum tmpfs: eine sterbende SD-Karte ist die haeufigste Ausfallursache
+# ueberhaupt. Dieser Mitschnitt darf sie nicht anfassen. RuntimeDirectory
+# liegt unter /run und damit im Arbeitsspeicher; nach einem Neustart ist er
+# weg, was hier genau richtig ist.
+Description=Vogel-Live: Mitschnitt-Ring im Arbeitsspeicher
+After=sound.target
+Wants=sound.target
+
+[Service]
+Type=simple
+User=vogel
+Group=vogel
+RuntimeDirectory=vogel-live
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+
+# 16 kHz mono reicht: das Mikrofon schneidet ohnehin bei 8 kHz ab, und genau
+# bis dorthin zeigt das Spektrogramm. Hoeher abzutasten kostet Rechenzeit und
+# Speicher fuer eine Bildhaelfte, in der nie etwas steht.
+# -ac/-ar stehen hinter -i, sind also Ausgabeoptionen: ffmpeg nimmt das
+# Geraet so, wie dsnoop es anbietet, und rechnet selbst herunter.
+# Die Prozentzeichen sind fuer systemd verdoppelt, sonst frisst es sie als
+# eigene Platzhalter und ffmpeg bekommt einen leeren Namen.
+ExecStart=/usr/bin/ffmpeg -hide_banner -loglevel error \
+    -f alsa -i vogelmik \
+    -ac 1 -ar 16000 \
+    -f segment -segment_time 15 -segment_format wav -reset_timestamps 1 \
+    -strftime 1 /run/vogel-live/%%Y%%m%%d-%%H%%M%%S.wav
+
+Restart=always
+RestartSec=5
+
+# Die Erkennung hat immer Vorrang. Faellt der Pi einmal unter Last, soll
+# dieser Mitschnitt hungern, nicht BirdNET.
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+
+# --- Abschottung ----------------------------------------------------------
+# Am 10.09.2026 mit `systemd-analyze security` nachgezogen: der Dienst stand
+# vorher bei 7,5 ("EXPOSED"). Er nimmt Anfragen entgegen und liefert Dateien
+# aus - das ist genau die Sorte Dienst, die wenig duerfen sollte.
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectClock=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @obsolete
+RemoveIPC=yes
+UMask=0077
+# PrivateDevices waere hier falsch: es nimmt /dev/snd mit weg, und ohne
+# Soundkarte gibt es nichts aufzunehmen. Stattdessen alles zu ausser ALSA.
+DevicePolicy=closed
+DeviceAllow=char-alsa rw
+MemoryMax=192M
+
+[Install]
+WantedBy=multi-user.target

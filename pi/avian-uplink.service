@@ -1,0 +1,33 @@
+[Unit]
+Description=Vogel-App Uplink (sendet BirdNET-Erkennungen an den Server)
+Documentation=file:/home/__USER__/avian-uplink/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=/home/__USER__/avian-uplink
+ExecStart=/usr/bin/python3 /home/__USER__/avian-uplink/avian_uplink.py --config /home/__USER__/avian-uplink/config.toml
+
+# Nie aufgeben: Ohne Netz sammelt der Dienst im Puffer und liefert später nach.
+Restart=always
+RestartSec=30
+
+# Ausgabe geht ins Journal (journalctl -u avian-uplink), nicht in eine Datei -
+# das schont die SD-Karte.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=avian-uplink
+
+# Nur lesender Zugriff auf die BirdNET-Datenbank, Schreibrechte allein im
+# eigenen Zustandsverzeichnis.
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/__USER__/.avian-uplink
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
