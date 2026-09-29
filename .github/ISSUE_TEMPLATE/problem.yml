@@ -1,0 +1,75 @@
+name: Something is not working
+description: A tool here misbehaves, fails, or does nothing
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Most problems with a BirdNET-Pi station
+        come down to three details, so please fill those in — it usually
+        saves a whole round of questions.
+
+        **Security problem?** Please don't use this form — see
+        [SECURITY.md](../blob/main/SECURITY.md) and report it privately.
+
+  - type: textarea
+    id: was-passiert
+    attributes:
+      label: What happens, and what did you expect?
+      placeholder: |
+        The live band stays empty. I expected strips to appear after ~30 s.
+    validations:
+      required: true
+
+  - type: input
+    id: werkzeug
+    attributes:
+      label: Which tool?
+      placeholder: "pi/live_dienst.py, server/wochenschau, vogelbilder-nachziehen.py …"
+    validations:
+      required: true
+
+  - type: input
+    id: pi
+    attributes:
+      label: Raspberry Pi model and OS
+      placeholder: "Pi 4B 4 GB, Raspberry Pi OS Bookworm 64-bit, headless"
+    validations:
+      required: true
+
+  - type: input
+    id: reccard
+    attributes:
+      label: REC_CARD from birdnet.conf
+      description: >
+        Copy the line as it stands. Half of all audio problems live here —
+        a card number instead of a name, or a device PulseAudio has taken.
+        `arecord -L | grep '^plughw:CARD='` shows the stable form.
+      placeholder: 'REC_CARD="plughw:CARD=Device,DEV=0"'
+    validations:
+      required: true
+
+  - type: input
+    id: birdnetpi
+    attributes:
+      label: Which BirdNET-Pi / AvianVisitors?
+      placeholder: "Nachtzuster, updated last week — or AvianVisitors v1.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: journal
+    attributes:
+      label: What does the journal say?
+      description: >
+        `journalctl -u <the unit> -n 40 --no-pager` — on the Pi for pi/,
+        on the server for server/. Please remove your own hostnames,
+        addresses and tokens before pasting.
+      render: text
+
+  - type: textarea
+    id: sonst
+    attributes:
+      label: Anything else
+      description: >
+        Since when, what changed just before, whether it ever worked.

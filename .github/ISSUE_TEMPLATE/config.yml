@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security problem
+    url: https://github.com/Yannick158/vogel-werkzeuge/security/advisories/new
+    about: Please report privately, not as a public issue. See SECURITY.md.
+  - name: Question about BirdNET-Pi itself
+    url: https://github.com/Nachtzuster/BirdNET-Pi/discussions
+    about: Recording, microphones, the web interface — that is upstream, and the community there is bigger.
+  - name: Question about AvianVisitors (the collage, illustrations)
+    url: https://github.com/Twarner491/AvianVisitors/issues
+    about: The collage, the atlas and the illustration sets belong to Teddy Warner's project.
