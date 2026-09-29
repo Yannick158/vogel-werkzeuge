@@ -37,3 +37,7 @@ __pycache__/
 *.bak.*
 *.vor-*
 .DS_Store
+
+# Beispiele sind absichtlich dabei (siehe beispiele/README.md)
+!beispiele/*.mp4
+!beispiele/*.srt
